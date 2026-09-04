@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: node
+    static_configs:
+      - targets:
+          - node-exporter:9100
+        labels:
+          instance: local-node
+      # Add remote node-exporter targets to this same job so the shared
+      # availability alerts and Grafana queries include every Ping node.
+      # - targets:
+      #     - 192.168.1.10:9100
+      #   labels:
+      #     instance: app-server-01
+      #     node_name: Hangzhou Telecom 01
+      #     region: Zhejiang
+      #     operator: Telecom
+
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080
+        labels:
+          instance: local-docker
+
+  # RabbitMQ publishes metrics on the host so this remains independent from
+  # the RabbitMQ Compose project's internal Docker network.
+  - job_name: rabbitmq
+    static_configs:
+      - targets:
+          - host.docker.internal:15692
+        labels:
+          instance: ping-rabbitmq

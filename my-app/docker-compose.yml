@@ -1,0 +1,21 @@
+services:
+  my-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # This value is compiled into browser JavaScript during `next build`.
+        NEXT_PUBLIC_PING_WS_BASE_URL: ${NEXT_PUBLIC_PING_WS_BASE_URL:-ws://localhost:8080/websocket}
+    image: ${MY_APP_IMAGE:-ping/my-app}:${MY_APP_TAG:-latest}
+    container_name: ${MY_APP_CONTAINER_NAME:-ping-my-app}
+    restart: unless-stopped
+    ports:
+      - "${MY_APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # Runtime-only value used by Next.js server routes and SSR.
+      PING_BACKEND_BASE_URL: ${PING_BACKEND_BASE_URL:-http://host.docker.internal:7080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

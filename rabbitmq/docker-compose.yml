@@ -1,0 +1,88 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: ping-rabbitmq
+    restart: unless-stopped
+    hostname: ping-rabbitmq
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit disk_free_limit 2147483648"
+    ports:
+      - target: 5672
+        published: ${RABBITMQ_AMQP_PORT:-5672}
+        protocol: tcp
+        host_ip: ${RABBITMQ_BIND_IP:-0.0.0.0}
+      - target: 15672
+        published: ${RABBITMQ_MANAGEMENT_PORT:-15672}
+        protocol: tcp
+        host_ip: ${RABBITMQ_BIND_IP:-0.0.0.0}
+      - target: 15692
+        published: ${RABBITMQ_PROMETHEUS_PORT:-15692}
+        protocol: tcp
+        host_ip: ${RABBITMQ_PROMETHEUS_BIND_IP:-0.0.0.0}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - rabbitmq
+
+  rabbitmq-init:
+    image: curlimages/curl:latest
+    container_name: ping-rabbitmq-init
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_INIT_USER:-guest}
+      RABBITMQ_PASS: ${RABBITMQ_INIT_PASS:-guest}
+    command:
+      - sh
+      - -ec
+      - |
+        base_url="http://rabbitmq:15672/api"
+        auth="$${RABBITMQ_USER}:$${RABBITMQ_PASS}"
+
+        until curl -fsS -u "$$auth" "$$base_url/overview" >/dev/null; do
+          sleep 2
+        done
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X PUT \
+          "$$base_url/exchanges/%2F/ping_node" \
+          -d '{"type":"direct","durable":true,"auto_delete":false,"internal":false,"arguments":{}}'
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X PUT \
+          "$$base_url/exchanges/%2F/ping_logs" \
+          -d '{"type":"direct","durable":true,"auto_delete":false,"internal":false,"arguments":{}}'
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X PUT \
+          "$$base_url/queues/%2F/ping_dev_node_result" \
+          -d '{"durable":true,"auto_delete":false,"arguments":{}}'
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X PUT \
+          "$$base_url/queues/%2F/master" \
+          -d '{"durable":true,"auto_delete":false,"arguments":{}}'
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X PUT \
+          "$$base_url/queues/%2F/ping_logs_python" \
+          -d '{"durable":true,"auto_delete":false,"arguments":{}}'
+
+        curl -fsS -u "$$auth" -H "content-type: application/json" -X POST \
+          "$$base_url/bindings/%2F/e/ping_logs/q/ping_logs_python" \
+          -d '{"routing_key":"python","arguments":{}}'
+    networks:
+      - rabbitmq
+
+networks:
+  rabbitmq:
+    name: ping-rabbitmq
+    driver: bridge
+
+volumes:
+  rabbitmq-data:

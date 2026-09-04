@@ -1,0 +1,47 @@
+groups:
+  - name: node-basic-alerts
+    rules:
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "节点采集器离线"
+          description: "{{ $labels.instance }} node-exporter 已超过 1 分钟不可用。"
+
+      - alert: RabbitMQMetricsDown
+        expr: up{job="rabbitmq"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RabbitMQ 指标不可用"
+          description: "{{ $labels.instance }} Prometheus 指标端点已超过 1 分钟不可用。"
+
+      - alert: NodeHighCpuUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "节点 CPU 使用率过高"
+          description: "{{ $labels.instance }} CPU 使用率持续 5 分钟超过 85%。"
+
+      - alert: NodeHighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "节点内存使用率过高"
+          description: "{{ $labels.instance }} 内存使用率持续 5 分钟超过 85%。"
+
+      - alert: NodeLowDiskSpace
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "节点磁盘空间不足"
+          description: "{{ $labels.instance }} {{ $labels.mountpoint }} 磁盘使用率持续 5 分钟超过 85%。"
